@@ -1,0 +1,7 @@
+{
+    "name": "lepusinc/gha-composer-fixture",
+    "description": "Fixture for testing vendor-build / vendor-load actions",
+    "require": {
+        "psr/log": "^3.0"
+    }
+}
