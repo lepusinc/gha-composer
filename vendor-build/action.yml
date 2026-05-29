@@ -1,0 +1,57 @@
+name: 'Vendor build'
+description: 'Cache Composer downloads and vendor, then install dependencies on a vendor cache miss. PHP/Composer must be set up beforehand.'
+
+inputs:
+  working-directory:
+    description: 'Directory containing composer.json'
+    required: false
+    default: '.'
+
+outputs:
+  vendor-key:
+    description: 'The vendor cache key used to save vendor/. Pass this to vendor-load so the keys align.'
+    value: ${{ steps.keys.outputs.vendor-key }}
+  composer-key:
+    description: 'The Composer downloads cache key.'
+    value: ${{ steps.keys.outputs.composer-key }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Compute cache keys
+      id: keys
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      run: |
+        composer_hash=$(sha256sum composer.lock | awk '{print $1}')
+        vendor_hash=$( (sha256sum composer.lock; sha256sum composer.json) | sha256sum | awk '{print $1}')
+        {
+          echo "composer-key=${RUNNER_OS}-composer-${composer_hash}"
+          echo "vendor-key=${RUNNER_OS}-vendor-${vendor_hash}"
+        } >> "$GITHUB_OUTPUT"
+
+    - name: Resolve Composer cache directory
+      id: composer-cache
+      shell: bash
+      run: |
+        echo "dir=$(composer config --working-dir='${{ inputs.working-directory }}' cache-dir)" >> "$GITHUB_OUTPUT"
+
+    - name: Cache Composer downloads
+      uses: actions/cache@v5
+      with:
+        path: ${{ steps.composer-cache.outputs.dir }}
+        key: ${{ steps.keys.outputs.composer-key }}
+        restore-keys: |
+          ${{ runner.os }}-composer-
+
+    - name: Cache vendor
+      id: vendor-cache
+      uses: actions/cache@v5
+      with:
+        path: ${{ inputs.working-directory }}/vendor
+        key: ${{ steps.keys.outputs.vendor-key }}
+
+    - name: Install dependencies
+      if: steps.vendor-cache.outputs.cache-hit != 'true'
+      shell: bash
+      run: composer install --working-dir='${{ inputs.working-directory }}' --prefer-dist --no-interaction --no-progress
