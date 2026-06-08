@@ -1,5 +1,5 @@
-name: 'Vendor build'
-description: 'Backwards-compatible alias for the install action. Use lepusinc/gha-composer/install instead.'
+name: 'Composer install'
+description: 'Restore vendor cache or run composer install on miss. PHP/Composer must be set up beforehand.'
 
 inputs:
   working-directory:
@@ -8,8 +8,11 @@ inputs:
     default: '.'
 
 outputs:
+  cache-hit:
+    description: 'true if vendor/ was restored from cache (composer install was skipped)'
+    value: ${{ steps.restore.outputs.cache-hit }}
   vendor-key:
-    description: 'The vendor cache key used to save vendor/. Pass this to vendor-load so the keys align.'
+    description: 'The vendor cache key used to save/restore vendor/.'
     value: ${{ steps.keys.outputs.vendor-key }}
   composer-key:
     description: 'The Composer downloads cache key.'
