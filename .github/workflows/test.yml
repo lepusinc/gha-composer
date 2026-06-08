@@ -53,3 +53,23 @@ jobs:
           fail-on-cache-miss: true
       - name: Assert vendor restored
         run: test -f tests/fixture/vendor/autoload.php
+
+  install:
+    name: 'Install (PHP ${{ matrix.php }})'
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        php: ['8.2', '8.3', '8.4', '8.5']
+      fail-fast: false
+    steps:
+      - uses: actions/checkout@v6
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          tools: composer:v2
+      - id: vendor
+        uses: ./install
+        with:
+          working-directory: tests/fixture
+      - name: Assert vendor installed
+        run: test -f tests/fixture/vendor/autoload.php

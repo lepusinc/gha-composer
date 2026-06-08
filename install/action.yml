@@ -1,0 +1,69 @@
+name: 'Composer install'
+description: 'Restore vendor cache or run composer install on miss. PHP/Composer must be set up beforehand.'
+
+inputs:
+  working-directory:
+    description: 'Directory containing composer.json'
+    required: false
+    default: '.'
+
+outputs:
+  cache-hit:
+    description: 'true if vendor/ was restored from cache (composer install was skipped)'
+    value: ${{ steps.restore.outputs.cache-hit }}
+  vendor-key:
+    description: 'The vendor cache key used to save/restore vendor/.'
+    value: ${{ steps.keys.outputs.vendor-key }}
+  composer-key:
+    description: 'The Composer downloads cache key.'
+    value: ${{ steps.keys.outputs.composer-key }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Compute cache keys
+      id: keys
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      run: |
+        composer_hash=$(sha256sum composer.lock | awk '{print $1}')
+        vendor_hash=$( (sha256sum composer.lock; sha256sum composer.json) | sha256sum | awk '{print $1}')
+        {
+          echo "composer-key=${RUNNER_OS}-composer-${composer_hash}"
+          echo "vendor-key=${RUNNER_OS}-vendor-${vendor_hash}"
+        } >> "$GITHUB_OUTPUT"
+
+    - name: Restore vendor cache
+      id: restore
+      uses: actions/cache/restore@v5
+      with:
+        path: ${{ inputs.working-directory }}/vendor
+        key: ${{ steps.keys.outputs.vendor-key }}
+
+    - name: Resolve Composer cache directory
+      id: composer-cache
+      if: steps.restore.outputs.cache-hit != 'true'
+      shell: bash
+      run: |
+        echo "dir=$(composer config --working-dir='${{ inputs.working-directory }}' cache-dir)" >> "$GITHUB_OUTPUT"
+
+    - name: Cache Composer downloads
+      if: steps.restore.outputs.cache-hit != 'true'
+      uses: actions/cache@v5
+      with:
+        path: ${{ steps.composer-cache.outputs.dir }}
+        key: ${{ steps.keys.outputs.composer-key }}
+        restore-keys: |
+          ${{ runner.os }}-composer-
+
+    - name: Install dependencies
+      if: steps.restore.outputs.cache-hit != 'true'
+      shell: bash
+      run: composer install --working-dir='${{ inputs.working-directory }}' --prefer-dist --no-interaction --no-progress
+
+    - name: Save vendor cache
+      if: steps.restore.outputs.cache-hit != 'true'
+      uses: actions/cache/save@v5
+      with:
+        path: ${{ inputs.working-directory }}/vendor
+        key: ${{ steps.keys.outputs.vendor-key }}
